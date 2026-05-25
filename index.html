@@ -5567,6 +5567,37 @@ function inyectarPaginasIA(paginas) {
     });
     alert(`¡Se han estructurado ${paginas.length} pantallas pedagógicas con éxito!`);
 }
+  // ==========================================
+// FUNCIÓN DEFINITIVA PARA CONECTAR CON GEMINI
+// ==========================================
+async function enviarAGemini(promptTexto) {
+    try {
+        // Llamamos directamente a nuestra API en Vercel sin URLs locales
+        const respuesta = await fetch('/api/preguntar-gemini', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ prompt: promptTexto })
+        });
+
+        const datos = await respuesta.json();
+
+        if (!respuesta.ok) {
+            throw new Error(datos.error || 'Error en la respuesta del servidor');
+        }
+
+        // Devolvemos el texto limpio que nos da la IA
+        return datos.resultado;
+
+    } catch (error) {
+        console.error("Error al conectar con Gemini:", error);
+        alert("Hubo un problema al conectar con el asistente: " + error.message);
+        return null;
+    }
+}
+// Código añadido para asegurar que cualquier botón que use la IA apunte aquí
+window.preguntarGemini = enviarAGemini;
 </script>
 </body>
 </html>
