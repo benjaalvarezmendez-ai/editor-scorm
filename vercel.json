@@ -3,7 +3,7 @@
   "routes": [
     {
       "src": "/api/preguntar-gemini",
-      "dest": "/api/preguntar-gemini.js"
+      "dest": "/preguntar-gemini.js"
     },
     {
       "src": "/(.*)",
