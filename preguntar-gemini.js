@@ -14,10 +14,17 @@ export default async function handler(req, res) {
     if (!apiKey) return res.status(500).json({ error: 'API Key no configurada' });
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
     const respuestaGoogle = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        // 🔒 ESTO OBLIGA A GEMINI A RESPONDER EN JSON ESTRICTO SIN TEXTO DE RELLENO
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      })
     });
 
     const datos = await respuestaGoogle.json();
