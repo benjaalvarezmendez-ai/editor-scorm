@@ -5496,7 +5496,7 @@ function openDoc(doc) {
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+d.title+'</title><style>body{font-family:Tahoma,sans-serif;max-width:900px;margin:0 auto;padding:32px;color:#1a1a1a;line-height:1.7}h1{color:#0F1941;font-size:22px;border-bottom:2px solid #2175D9;padding-bottom:8px}h2{color:#0F1941;font-size:16px;margin-top:24px}h3{color:#2175D9;font-size:14px}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}th{background:#0F1941;color:#fff;padding:8px 10px;text-align:left}td{padding:6px 10px;border-bottom:1px solid #eee}pre{background:#1e1e2e;color:#a6e3a1;padding:16px;border-radius:6px;font-size:12px;overflow-x:auto}code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:12px}ol,ul{padding-left:24px}</style></head><body>'+d.content+'</body></html>');
   w.document.close();
 }
-// 🪄 LÓGICA DE INTEGRACIÓN DEL ASISTENTE DE IA GEMINI 🪄
+// 🪄 LÓGICA DE INTEGRACIÓN DEL ASISTENTE DE IA GEMINI (VERSION MEJORADA) 🪄
 async function invocarAsistenteGemini() {
     const promptUsuario = document.getElementById('ai-prompt').value;
     const btn = document.getElementById('ai-generate-btn');
@@ -5510,28 +5510,50 @@ async function invocarAsistenteGemini() {
         btn.disabled = true;
         btn.innerText = "Pensando... 🧠";
 
-        // Llamamos al backend serverless seguro que estará en Vercel
+        // Añadimos instrucciones ocultas para obligar a Gemini a usar el formato exacto del editor
+        const promptModificado = promptUsuario + 
+            "\n\nIMPORTANTE: Debes responder ÚNICAMENTE con un objeto JSON válido. " +
+            "Si te piden preguntas o un test, usa este formato: {\"tipo\": \"quiz\", \"preguntas\": [...]}. " +
+            "Si te piden contenido, teoría o temas, usa este formato: {\"tipo\": \"temario\", \"paginas\": [...]}. " +
+            "No incluyas introducciones, saludos, ni bloques de código Markdown (no uses ```json). Solo el JSON puro.";
+
         const respuesta = await fetch('/api/preguntar-gemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: promptUsuario })
+            body: JSON.stringify({ prompt: promptModificado })
         });
 
         if (!respuesta.ok) throw new Error("Error en la respuesta de la API");
 
-        const datos = await respuesta.json();
+        const datosServidor = await respuesta.json();
+        let resultadoTexto = datosServidor.resultado;
+
+        // Limpieza de emergencia por si Gemini mete bloques de código Markdown ```json ... ```
+        if (resultadoTexto.includes("```")) {
+            resultadoTexto = resultadoTexto.replace(/```json/g, "").replace(/```/g, "").trim();
+        }
+
+        // Convertimos el texto de la IA en un objeto JavaScript real
+        let datos;
+        try {
+            datos = JSON.parse(resultadoTexto);
+        } catch (e) {
+            console.error("Error al procesar el JSON de la IA:", resultadoTexto);
+            throw new Error("La IA no devolvió un formato JSON válido. Prueba a pedirlo de otra forma.");
+        }
         
+        // Ejecutamos la lógica original del editor según lo que responda la IA
         if (datos.tipo === "quiz" && datos.preguntas) {
             inyectarPreguntasIA(datos.preguntas);
         } else if (datos.tipo === "temario" && datos.paginas) {
             inyectarPaginasIA(datos.paginas);
         } else {
-            alert("La IA devolvió un formato no reconocido. Prueba con otra instrucción.");
+            alert("La IA devolvió un formato no reconocido. Prueba con otra instrucción más específica.");
         }
 
     } catch (error) {
         console.error("Error con la IA:", error);
-        alert("Hubo un problema al conectar con el asistente de IA. Asegúrate de configurar la función API en el servidor.");
+        alert("Hubo un problema: " + error.message);
     } finally {
         btn.disabled = false;
         btn.innerText = "🪄 Generar con IA";
