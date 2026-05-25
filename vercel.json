@@ -1,9 +1,13 @@
 {
   "version": 2,
+  "builds": [
+    { "src": "preguntar-gemini.js", "use": "@vercel/node" },
+    { "src": "index.html", "use": "@vercel/static" }
+  ],
   "routes": [
     {
       "src": "/api/preguntar-gemini",
-      "dest": "/preguntar-gemini.js"
+      "dest": "preguntar-gemini.js"
     },
     {
       "src": "/(.*)",
