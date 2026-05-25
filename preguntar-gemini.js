@@ -20,7 +20,6 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        // 🔒 ESTO OBLIGA A GEMINI A RESPONDER EN JSON ESTRICTO SIN TEXTO DE RELLENO
         generationConfig: {
           responseMimeType: "application/json"
         }
@@ -28,7 +27,20 @@ export default async function handler(req, res) {
     });
 
     const datos = await respuestaGoogle.json();
-    const textoIA = datos.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta';
+    
+    // Extracción ultra-segura del texto de la IA (revisa múltiples rutas posibles)
+    let textoIA = "";
+    if (datos.candidates?.[0]?.content?.parts?.[0]?.text) {
+        textoIA = datos.candidates[0].content.parts[0].text;
+    } else if (datos.content?.parts?.[0]?.text) {
+        textoIA = datos.content.parts[0].text;
+    } else if (typeof datos === 'string') {
+        textoIA = datos;
+    } else {
+        // Si Google devuelve un error estructurado, lo capturamos aquí
+        textoIA = JSON.stringify(datos);
+    }
+
     return res.status(200).json({ resultado: textoIA });
   } catch (error) {
     return res.status(500).json({ error: error.message });
