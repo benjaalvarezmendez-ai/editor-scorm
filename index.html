@@ -157,7 +157,7 @@ textarea{min-height:120px;resize:vertical;line-height:1.6}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
-// VARIABLES DE CONTROL DE ESTADO
+// ================= MOTOR DE ESTADO GLOBAL DEL EDITOR LIBRE =================
 let courseElements = []; 
 let activeElementId = null;
 let globalSettings = {
@@ -174,7 +174,9 @@ function switchMode(mode) {
   
   const panel = document.getElementById(`mode-${mode}`);
   if(panel) panel.classList.remove('hidden');
-  document.getElementById(`mode-${mode}-btn`).classList.add('active');
+  
+  const btn = document.getElementById(`mode-${mode}-btn`);
+  if(btn) btn.classList.add('active');
 }
 
 // Inicialización de la App
@@ -182,7 +184,7 @@ window.onload = function() {
   showGlobalSettings();
 };
 
-// FUNCIÓN CLAVE: Añadir elementos manualmente desde los botones clicables
+// FUNCIÓN: Añadir elementos manualmente desde los botones clicables del sidebar
 function addCustomElement(family, type, title = '', content = '', extra = null) {
   const id = 'el_' + Math.random().toString(36).substr(2, 9);
   const defaultTitle = title || `${family === 'page' ? 'Página' : 'Pregunta'} - ${type.toUpperCase()}`;
@@ -202,9 +204,10 @@ function addCustomElement(family, type, title = '', content = '', extra = null) 
   loadElement(id);
 }
 
-// Pintar barra lateral
+// Pintar barra lateral izquierda
 function renderSidebar() {
   const list = document.getElementById('ws-page-list');
+  if(!list) return;
   list.innerHTML = '';
   
   courseElements.forEach((el, index) => {
@@ -256,7 +259,7 @@ function showGlobalSettings() {
   `;
 }
 
-// Cargar elemento especializado en el lienzo
+// Cargar elemento especializado en el lienzo central
 function loadElement(id) {
   activeElementId = id;
   renderSidebar();
@@ -315,7 +318,6 @@ function updateField(id, field, value) {
   }
 }
 
-// Modificar los textos internos de opciones de cuestionario
 function updateOption(id, idx, value) {
   const el = courseElements.find(item => item.id === id);
   if(el) el.options[idx] = value;
@@ -333,12 +335,10 @@ async function generateWithAI() {
   aiButton.innerText = "⏳ Gemini está pensando...";
   aiButton.style.background = "#d32f2f";
 
-  // Pega aquí tu API Key de ayer entre las comillas
+  // PON AQUÍ TU API KEY REAL ENTRE LAS COMILLAS
   const API_KEY = "AIzaSyBl8K-PahJrssEFQ6RKL-M8D_kUR66_RkA"; 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-  // Le damos un sistema de instrucciones estricto a Gemini para que nos devuelva un JSON estructurado
-  // que nuestro editor entienda directamente sin romper el código.
   const sistemaInstrucciones = `Eres un asistente experto en SCORM. Tu tarea es procesar la petición del usuario y devolver UNICAMENTE un objeto JSON estructurado (sin formato markdown, sin triple comilla, solo el JSON limpio). 
   El JSON debe seguir estrictamente este formato:
   {
@@ -379,23 +379,16 @@ async function generateWithAI() {
     });
 
     const data = await response.json();
-    
-    // Extraemos el texto de la respuesta de Google
     let rawText = data.candidates[0].content.parts[0].text;
-    
-    // Limpiamos posibles formatos markdown que a veces Gemini añade por error
     rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
     
-    // Parseamos el JSON real que nos devolvió la IA
     const courseStructure = JSON.parse(rawText);
     
-    // Inyectamos los datos reales en el estado de tu editor
-    courseElements = []; // Vaciamos lo anterior
+    courseElements = []; 
     globalSettings.title = courseStructure.courseTitle || "Curso Generado por IA";
     
     courseStructure.elements.forEach(el => {
       addCustomElement(el.family, el.type, el.title, el.content || '', el.options || null);
-      // Si es un quiz, nos aseguramos de guardar la respuesta correcta que decidió la IA
       if(el.family === 'quiz' && el.correctAnswer !== undefined) {
         courseElements[courseElements.length - 1].correctAnswer = el.correctAnswer;
       }
@@ -406,37 +399,12 @@ async function generateWithAI() {
 
   } catch (error) {
     console.error("Error con Gemini:", error);
-    alert("Hubo un error al conectar con Gemini. Revisa que tu API Key sea correcta o el formato del prompt.");
+    alert("Hubo un error al conectar con Gemini. Revisa tu API Key.");
   } finally {
-    // RESTAURAR EL BOTÓN A SU ESTADO ORIGINAL
     aiButton.disabled = false;
     aiButton.innerText = "🪄 Generar con IA";
     aiButton.style.background = "#2e7d32";
   }
-}
-  
-  // ACTIVAR INDICADOR DE PENSAMIENTO / CARGA
-  aiButton.disabled = true;
-  aiButton.innerText = "⏳ Generando curso...";
-  aiButton.style.background = "#d32f2f";
-
-  // Simulación del retardo del servidor de Gemini para procesamiento seguro
-  setTimeout(() => {
-    courseElements = [];
-    globalSettings.title = "Módulo Generado por Asistente Gemini";
-    
-    addCustomElement('page', 'text', '1. Conceptos Fundamentales', '<h3>Lección Automatizada</h3><p>Contenido procesado de forma exitosa de acuerdo a los parámetros analizados en el prompt.</p>');
-    addCustomElement('page', 'video', '2. Videotutorial Práctico', 'https://www.youtube.com/embed/dQw4w9WgXcQ');
-    addCustomElement('quiz', 'single', 'Evaluación de control: ¿El contenido se despliega correctamente?', '', ['Sí, de forma especializada', 'No, sigue rompiéndose']);
-
-    // PASO CLAVE: RESTAURAR EL BOTÓN TRAS ELÉXITO
-    aiButton.disabled = false;
-    aiButton.innerText = "🪄 Generar con IA";
-    aiButton.style.background = "#2e7d32";
-    
-    showGlobalSettings();
-    alert("¡Curso generado con éxito por Gemini! Revisa la estructura en la barra de la izquierda.");
-  }, 2000); // Simulamos 2 segundos de latencia de red e IA
 }
 
 // EMPAQUETADOR DIRECTO SCORM
@@ -452,7 +420,6 @@ function downloadScormZIP() {
 </manifest>`;
 
   let dataJs = `window.SCORM_COURSE_DATA = { settings: ${JSON.stringify(globalSettings)}, elements: ${JSON.stringify(courseElements)} };`;
-  
   let indexHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SCORM</title><script src="course_data.js"><\/script></head><body><div style="padding:40px; font-family:sans-serif;"><h2>Estructura del Curso Cargada Exitosamente en LMS</h2><p>Páginas Totales detectadas: \${window.SCORM_COURSE_DATA.elements.length}</p></div></body></html>`;
 
   zip.file("imsmanifest.xml", manifest);
