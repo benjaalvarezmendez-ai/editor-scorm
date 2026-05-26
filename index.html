@@ -323,22 +323,20 @@ function updateOption(id, idx, value) {
   if(el) el.options[idx] = value;
 }
 
-// ================= CONEXIÓN DIRECTA Y REAL DESDE VERCEL A GOOGLE GEMINI =================
+// ================= CONEXIÓN DIRECTA Y DEFINITIVA CON GOOGLE GEMINI API =================
 async function generateWithAI() {
   const prompt = document.getElementById('ai-prompt').value;
   if (!prompt) return alert("Por favor, escribe una instrucción para la IA.");
   
   const aiButton = document.getElementById('ai-submit-btn');
   
-  // ACTIVAR INDICADOR DE CARGA (UX)
+  // ACTIVAR INDICADOR DE CARGA EN EL BOTÓN
   aiButton.disabled = true;
   aiButton.innerText = "⏳ Gemini está pensando...";
   aiButton.style.background = "#d32f2f";
 
-  // Tu clave de AI Studio (la que tienes)
+  // Tu clave de AI Studio
   const API_KEY = "AIzaSyBl8K-PahJrssEFQ6RKL-M8D_kUR66_RkA"; 
-  
-  // URL oficial unificada para producción en Google AI Studio
   const targetUrl = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
 
   const sistemaInstrucciones = `Eres un asistente experto en SCORM. Tu tarea es procesar la petición del usuario y devolver UNICAMENTE un objeto JSON estructurado (sin formato markdown, sin triple comilla, solo el JSON limpio). 
@@ -369,31 +367,48 @@ async function generateWithAI() {
   }
   Genera el contenido solicitado por el usuario adaptándolo a esta estructura. Genera al menos 2 páginas y 1 quiz.`;
 
+  // Estructura de carga limpia requerida por la API v1 de Google
+  const payload = {
+    contents: [
+      {
+        parts: [
+          {
+            text: sistemaInstrucciones + "\n\nPetición del usuario: " + prompt
+          }
+        ]
+      }
+    ]
+  };
+
   try {
     const response = await fetch(targetUrl, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        contents: [{ 
-          parts: [{ text: sistemaInstrucciones + "\n\nPetición del usuario: " + prompt }] 
-        }]
-      })
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json();
     
-    // Si la API Key tuviera algún problema o Google deniega el acceso, saltará aquí
+    // Si la API responde pero contiene un objeto de error interno
     if (data.error) {
-      throw new Error(data.error.message || "Error devuelto por los servidores de Google.");
+      throw new Error(data.error.message || "Error interno de la API de Google.");
+    }
+
+    // Validación de la respuesta estructural de Gemini
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error("Estructura de respuesta inválida. Inténtalo de nuevo.");
     }
 
     let rawText = data.candidates[0].content.parts[0].text;
+    
+    // Limpieza radical de marcas Markdown si Gemini las añade
     rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
     
     const courseStructure = JSON.parse(rawText);
     
+    // Resetear elementos e inyectar el nuevo curso generado
     courseElements = []; 
     globalSettings.title = courseStructure.courseTitle || "Curso Generado por IA";
     
@@ -408,9 +423,10 @@ async function generateWithAI() {
     alert("¡Gemini ha creado el curso con éxito!");
 
   } catch (error) {
-    console.error("Error detectado en Vercel:", error);
+    console.error("Detalle del error en Vercel:", error);
     alert("Error en la llamada. Detalle técnico: " + error.message);
   } finally {
+    // RESTAURAR BOTÓN A SU ESTADO ORIGINAL
     aiButton.disabled = false;
     aiButton.innerText = "🪄 Generar con IA";
     aiButton.style.background = "#2e7d32";
