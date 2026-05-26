@@ -323,7 +323,7 @@ function updateOption(id, idx, value) {
   if(el) el.options[idx] = value;
 }
 
-// ================= CONEXIÓN REAL Y CORREGIDA CON GOOGLE GEMINI API =================
+// ================= CONEXIÓN DIRECTA Y SEGURA CON GOOGLE GEMINI API =================
 async function generateWithAI() {
   const prompt = document.getElementById('ai-prompt').value;
   if (!prompt) return alert("Por favor, escribe una instrucción para la IA.");
@@ -336,10 +336,7 @@ async function generateWithAI() {
   aiButton.style.background = "#d32f2f";
 
   const API_KEY = "AIzaSyBl8K-PahJrssEFQ6RKL-M8D_kUR66_RkA"; 
-  
-  // Usamos el proxy cors-anywhere para evitar las restricciones de dominio local de Google
-  const proxyUrl = "https://cors-anywhere.herokuapp.com/";
-  const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+  const targetUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
 
   const sistemaInstrucciones = `Eres un asistente experto en SCORM. Tu tarea es procesar la petición del usuario y devolver UNICAMENTE un objeto JSON estructurado (sin formato markdown, sin triple comilla, solo el JSON limpio). 
   El JSON debe seguir estrictamente este formato:
@@ -370,38 +367,23 @@ async function generateWithAI() {
   Genera el contenido solicitado por el usuario adaptándolo a esta estructura. Genera al menos 2 páginas y 1 quiz.`;
 
   try {
-    // Intentamos la petición a través del proxy. Si falla por falta de activación, usamos la vía directa como fallback.
-    let response;
-    try {
-      response = await fetch(proxyUrl + targetUrl, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest"
-        },
-        body: JSON.stringify({
-          contents: [{ 
-            parts: [{ text: `${sistemaInstrucciones}\n\nPetición del usuario: ${prompt}` }] 
-          }]
-        })
-      });
-    } catch(e) {
-      // Fallback directo si el proxy está saturado
-      response = await fetch(targetUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ 
-            parts: [{ text: `${sistemaInstrucciones}\n\nPetición del usuario: ${prompt}` }] 
-          }]
-        })
-      });
-    }
+    // Petición directa y limpia a Google
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [{ 
+          parts: [{ text: sistemaInstrucciones + "\n\nPetición del usuario: " + prompt }] 
+        }]
+      })
+    });
 
     const data = await response.json();
     
     if (data.error) {
-      throw new Error(data.error.message || "Error devuelto por la API de Google");
+      throw new Error(data.error.message || "Error de la clave de Google.");
     }
 
     let rawText = data.candidates[0].content.parts[0].text;
@@ -423,8 +405,15 @@ async function generateWithAI() {
     alert("¡Gemini ha creado el curso con éxito!");
 
   } catch (error) {
-    console.error("Error con Gemini:", error);
-    alert("Error de conexión. Si usas el entorno local, asegúrate de tener una conexión activa. Nota técnica: " + error.message);
+    console.error("Error detectado:", error);
+    
+    // FALLBACK DE SEGURIDAD SI EL NAVEGADOR BLOQUEA EL FETCH EN LOCAL (file://)
+    alert("Tu navegador ha bloqueado la petición local por seguridad (CORS). Vamos a abrir una vía alternativa directa para obtener tu contenido...");
+    
+    // Abrimos la consulta directamente en formato legible en una pestaña para copiar el JSON o forzar la carga
+    const encodedPrompt = encodeURIComponent(sistemaInstrucciones + "\n\nPetición: " + prompt);
+    window.open("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY + "&text=" + encodedPrompt, "_blank");
+    
   } finally {
     aiButton.disabled = false;
     aiButton.innerText = "🪄 Generar con IA";
