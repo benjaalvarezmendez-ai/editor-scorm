@@ -323,7 +323,7 @@ function updateOption(id, idx, value) {
   if(el) el.options[idx] = value;
 }
 
-// ================= CONEXIÓN DIRECTA Y SEGURA CON GOOGLE GEMINI API =================
+// ================= CONEXIÓN DIRECTA Y REAL DESDE VERCEL A GOOGLE GEMINI =================
 async function generateWithAI() {
   const prompt = document.getElementById('ai-prompt').value;
   if (!prompt) return alert("Por favor, escribe una instrucción para la IA.");
@@ -335,6 +335,7 @@ async function generateWithAI() {
   aiButton.innerText = "⏳ Gemini está pensando...";
   aiButton.style.background = "#d32f2f";
 
+  // CLAVE REAL DE GEMINI
   const API_KEY = "AIzaSyBl8K-PahJrssEFQ6RKL-M8D_kUR66_RkA"; 
   const targetUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
 
@@ -367,7 +368,6 @@ async function generateWithAI() {
   Genera el contenido solicitado por el usuario adaptándolo a esta estructura. Genera al menos 2 páginas y 1 quiz.`;
 
   try {
-    // Petición directa y limpia a Google
     const response = await fetch(targetUrl, {
       method: "POST",
       headers: { 
@@ -382,8 +382,9 @@ async function generateWithAI() {
 
     const data = await response.json();
     
+    // Si la API Key tuviera algún problema o Google deniega el acceso, saltará aquí
     if (data.error) {
-      throw new Error(data.error.message || "Error de la clave de Google.");
+      throw new Error(data.error.message || "Error devuelto por los servidores de Google.");
     }
 
     let rawText = data.candidates[0].content.parts[0].text;
@@ -405,15 +406,8 @@ async function generateWithAI() {
     alert("¡Gemini ha creado el curso con éxito!");
 
   } catch (error) {
-    console.error("Error detectado:", error);
-    
-    // FALLBACK DE SEGURIDAD SI EL NAVEGADOR BLOQUEA EL FETCH EN LOCAL (file://)
-    alert("Tu navegador ha bloqueado la petición local por seguridad (CORS). Vamos a abrir una vía alternativa directa para obtener tu contenido...");
-    
-    // Abrimos la consulta directamente en formato legible en una pestaña para copiar el JSON o forzar la carga
-    const encodedPrompt = encodeURIComponent(sistemaInstrucciones + "\n\nPetición: " + prompt);
-    window.open("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY + "&text=" + encodedPrompt, "_blank");
-    
+    console.error("Error detectado en Vercel:", error);
+    alert("Error en la llamada. Detalle técnico: " + error.message);
   } finally {
     aiButton.disabled = false;
     aiButton.innerText = "🪄 Generar con IA";
