@@ -321,12 +321,99 @@ function updateOption(id, idx, value) {
   if(el) el.options[idx] = value;
 }
 
-// ASISTENTE IA GEMINI: Lógica con feedback de carga para evitar sensación de congelamiento
-function generateWithAI() {
+// ================= CONEXIÓN REAL CON GOOGLE GEMINI API =================
+async function generateWithAI() {
   const prompt = document.getElementById('ai-prompt').value;
-  if (!prompt) return alert("Por favor escribe una instrucción para la IA.");
+  if (!prompt) return alert("Por favor, escribe una instrucción para la IA.");
   
   const aiButton = document.getElementById('ai-submit-btn');
+  
+  // ACTIVAR INDICADOR DE CARGA (UX)
+  aiButton.disabled = true;
+  aiButton.innerText = "⏳ Gemini está pensando...";
+  aiButton.style.background = "#d32f2f";
+
+  // Pega aquí tu API Key de ayer entre las comillas
+  const API_KEY = "TU_API_KEY_AQUÍ"; 
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+  // Le damos un sistema de instrucciones estricto a Gemini para que nos devuelva un JSON estructurado
+  // que nuestro editor entienda directamente sin romper el código.
+  const sistemaInstrucciones = `Eres un asistente experto en SCORM. Tu tarea es procesar la petición del usuario y devolver UNICAMENTE un objeto JSON estructurado (sin formato markdown, sin triple comilla, solo el JSON limpio). 
+  El JSON debe seguir estrictamente este formato:
+  {
+    "courseTitle": "Título del curso",
+    "elements": [
+      {
+        "family": "page",
+        "type": "text", 
+        "title": "Título de la página",
+        "content": "Contenido en texto o HTML limpio"
+      },
+      {
+        "family": "page",
+        "type": "video",
+        "title": "Título del vídeo",
+        "content": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+      },
+      {
+        "family": "quiz",
+        "type": "single",
+        "title": "Enunciado de la pregunta de opción única",
+        "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
+        "correctAnswer": 1
+      }
+    ]
+  }
+  Genera el contenido solicitado por el usuario adaptándolo a esta estructura. Genera al menos 2 páginas y 1 quiz.`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ 
+          parts: [{ text: `${sistemaInstrucciones}\n\nPetición del usuario: ${prompt}` }] 
+        }]
+      })
+    });
+
+    const data = await response.json();
+    
+    // Extraemos el texto de la respuesta de Google
+    let rawText = data.candidates[0].content.parts[0].text;
+    
+    // Limpiamos posibles formatos markdown que a veces Gemini añade por error
+    rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+    
+    // Parseamos el JSON real que nos devolvió la IA
+    const courseStructure = JSON.parse(rawText);
+    
+    // Inyectamos los datos reales en el estado de tu editor
+    courseElements = []; // Vaciamos lo anterior
+    globalSettings.title = courseStructure.courseTitle || "Curso Generado por IA";
+    
+    courseStructure.elements.forEach(el => {
+      addCustomElement(el.family, el.type, el.title, el.content || '', el.options || null);
+      // Si es un quiz, nos aseguramos de guardar la respuesta correcta que decidió la IA
+      if(el.family === 'quiz' && el.correctAnswer !== undefined) {
+        courseElements[courseElements.length - 1].correctAnswer = el.correctAnswer;
+      }
+    });
+
+    showGlobalSettings();
+    alert("¡Gemini ha creado el curso con éxito!");
+
+  } catch (error) {
+    console.error("Error con Gemini:", error);
+    alert("Hubo un error al conectar con Gemini. Revisa que tu API Key sea correcta o el formato del prompt.");
+  } finally {
+    // RESTAURAR EL BOTÓN A SU ESTADO ORIGINAL
+    aiButton.disabled = false;
+    aiButton.innerText = "🪄 Generar con IA";
+    aiButton.style.background = "#2e7d32";
+  }
+}
   
   // ACTIVAR INDICADOR DE PENSAMIENTO / CARGA
   aiButton.disabled = true;
