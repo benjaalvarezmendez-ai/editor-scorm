@@ -1,48 +1,55 @@
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+import { GoogleGenAI } from '@google/genai';
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
+// Inicializamos la IA con la clave guardada en Vercel
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+export default async function handler(req, res) {
+  // Solo permitimos peticiones POST (cuando el usuario envía el formulario)
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método no permitido' });
+  }
 
   try {
-    const { prompt } = req.body;
-    if (!prompt) return res.status(400).json({ error: 'Falta el prompt' });
+    const { promptUsuario } = req.body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'API Key no configurada' });
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    
-    const respuestaGoogle = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      })
-    });
-
-    const datos = await respuestaGoogle.json();
-    
-    // Extracción ultra-segura del texto de la IA (revisa múltiples rutas posibles)
-    let textoIA = "";
-    if (datos.candidates?.[0]?.content?.parts?.[0]?.text) {
-        textoIA = datos.candidates[0].content.parts[0].text;
-    } else if (datos.content?.parts?.[0]?.text) {
-        textoIA = datos.content.parts[0].text;
-    } else if (typeof datos === 'string') {
-        textoIA = datos;
-    } else {
-        // Si Google devuelve un error estructurado, lo capturamos aquí
-        textoIA = JSON.stringify(datos);
+    if (!promptUsuario) {
+      return res.status(400).json({ error: 'Falta la petición del usuario' });
     }
 
-    return res.status(200).json({ resultado: textoIA });
+    // Llamamos a la API de Gemini configurando el prompt oculto
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash', 
+      config: {
+        // PROMPT OCULTO: Aquí le damos el rol de experto en SCORM e-learning
+        systemInstruction: `Eres un Ingeniero Instruccional experto en eLearning y SCORM. 
+        Analiza las indicaciones del usuario y genera una propuesta de estructura de módulos en formato JSON. 
+        Devuelve EXCLUSIVAMENTE el objeto JSON, sin textos de introducción ni bloques de código markdown (\`\`\`json).
+        Esquema requerido:
+        {
+          "curso_titulo": "Título general del curso",
+          "modulos": [
+            {
+              "modulo_id": 1,
+              "modulo_titulo": "Título del Módulo",
+              "objetivo_aprendizaje": "Al finalizar, el alumno...",
+              "temas": ["Tema 1", "Tema 2"]
+            }
+          ]
+        }`,
+        responseMimeType: 'application/json', // Fuerza a Gemini a responder en JSON estructurado
+        temperature: 0.3
+      },
+      contents: promptUsuario,
+    });
+
+    // Convertimos la respuesta de texto de Gemini a un objeto JSON real
+    const estructuraCurso = JSON.parse(response.text);
+
+    // Devolvemos el JSON limpio al frontend del editor
+    return res.status(200).json(estructuraCurso);
+
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("Error en el servidor:", error);
+    return res.status(500).json({ error: 'Error al procesar la IA', detalle: error.message });
   }
 }
