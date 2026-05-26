@@ -336,9 +336,8 @@ async function generateWithAI() {
   aiButton.style.background = "#d32f2f";
 
   // PON AQUÍ TU API KEY REAL ENTRE LAS COMILLAS
-  const API_KEY ="AIzaSyBl8K-PahJrssEFQ6RKL-M8D_kUR66_RkA"; 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-
+  const API_KEY = "AIzaSyBl8K-PahJrssEFQ6RKL-M8D_kUR66_RkA"; 
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
   const sistemaInstrucciones = `Eres un asistente experto en SCORM. Tu tarea es procesar la petición del usuario y devolver UNICAMENTE un objeto JSON estructurado (sin formato markdown, sin triple comilla, solo el JSON limpio). 
   El JSON debe seguir estrictamente este formato:
   {
